@@ -1,0 +1,22 @@
+<SampleColumnSettings>
+  <FileVersion>1.00</FileVersion>
+  <Column>
+    <ID>03-size-750rpm</ID>
+    <DiameterInMM>3.0</DiameterInMM>
+  </Column>
+  <Sample>
+    <Name>03-size-750rpm-3mm</Name>
+    <Description>03-size-750rpm-3mm column diameter</Description>
+    <Structure>PARTICULATE</Structure>
+    <Density>5.0600</Density>
+    <BET>
+      <Known>TRUE</Known>
+      <AverageDiameter>0.0000</AverageDiameter>
+      <AverageLength>0.000</AverageLength>
+      <Value>30.0000</Value>
+    </BET>
+    <ClassOfMaterial>INORGANIC</ClassOfMaterial>
+    <Porosity>UNKNOWN</Porosity>
+    <Mass>20.0000</Mass>
+  </Sample>
+</SampleColumnSettings>

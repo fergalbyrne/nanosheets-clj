@@ -1,0 +1,22 @@
+<SampleColumnSettings>
+  <FileVersion>1.00</FileVersion>
+  <Column>
+    <ID>S1_89mg</ID>
+    <DiameterInMM>3.0</DiameterInMM>
+  </Column>
+  <Sample>
+    <Name>S1_89mg</Name>
+    <Description>S1_89mg</Description>
+    <Structure>OTHER</Structure>
+    <Density>5.0600</Density>
+    <BET>
+      <Known>TRUE</Known>
+      <AverageDiameter>0.0000</AverageDiameter>
+      <AverageLength>0.000</AverageLength>
+      <Value>6.6960</Value>
+    </BET>
+    <ClassOfMaterial>UNKNOWN</ClassOfMaterial>
+    <Porosity>UNKNOWN</Porosity>
+    <Mass>89.4000</Mass>
+  </Sample>
+</SampleColumnSettings>

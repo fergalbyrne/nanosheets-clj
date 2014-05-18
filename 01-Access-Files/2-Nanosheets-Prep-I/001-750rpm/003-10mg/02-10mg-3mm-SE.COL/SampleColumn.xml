@@ -1,0 +1,22 @@
+<SampleColumnSettings>
+  <FileVersion>1.00</FileVersion>
+  <Column>
+    <ID>02-10mg-3mm-SE</ID>
+    <DiameterInMM>3.0</DiameterInMM>
+  </Column>
+  <Sample>
+    <Name>02-10mg-3mm-SE</Name>
+    <Description>02-10mg-3mm-SE</Description>
+    <Structure>PARTICULATE</Structure>
+    <Density>5.0600</Density>
+    <BET>
+      <Known>TRUE</Known>
+      <AverageDiameter>0.0000</AverageDiameter>
+      <AverageLength>0.000</AverageLength>
+      <Value>10.8018</Value>
+    </BET>
+    <ClassOfMaterial>INORGANIC</ClassOfMaterial>
+    <Porosity>UNKNOWN</Porosity>
+    <Mass>10.0000</Mass>
+  </Sample>
+</SampleColumnSettings>
