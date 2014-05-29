@@ -1,0 +1,5 @@
+"injection_table_name","number_of_moles_injected","stage_time","FIDGain","target_Temperature_Column_Oven","flow_Rate","target_column_rh"
+"methaneInjection1",3000,3,1,30,10,0
+"methaneInjection2",3000,3,1,30,10,0
+"methaneInjection3",3000,3,1,30,10,0
+"methaneInjection4",3000,3,1,30,10,0

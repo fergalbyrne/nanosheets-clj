@@ -63,6 +63,7 @@
 
 (def root-dir (fs/file ".."))
 
+(def igc-runs (glob-pattern root-dir "Reference*"))
 (def igc-runs (glob-pattern root-dir "Nanosheets*"))
 
 (def igc-data (for [igc-run igc-runs
@@ -92,6 +93,10 @@
                                   [:injection_name :solvent] schedule-data))]
     [injection-map solvent-map]))
 
+(defn find-min
+  [data col grp-col]
+  (col (first (:rows ($rollup :min col grp-col data)))))
+
 (defn table-map [files injections-csv sched-file]
 	(let [[injection-map solvent-map] (injection-config injections-csv sched-file)]
        (into {} (for [f files]
@@ -99,11 +104,14 @@
              fname (s/replace (fs/base-name f) #".csv$" "")
              gain (injection-map fname)
              solvent (solvent-map fname)
+             data (tag-data data :solvent solvent)
+             min-value (find-min data :fid_signal :solvent)
              normalised (add-derived-column :normalised [:fid_signal]
-                                            #(/ % gain) data)
+                                            #(- % min-value) data)
+                                            ;#(/ % gain) data)
 	           with-name (tag-data normalised :injection fname)
-             with-name (tag-data with-name :solvent solvent)
              _ (println "Loaded" fname (length (:rows with-name)) "rows.. Gain " gain
+                        "Min " min-value
                         (col-names with-name) solvent)
 ]
 	    {fname with-name})))))
@@ -113,11 +121,13 @@
         tables (vals data-map)]
     (reduce conj-rows (first tables) (rest tables))))
 
-(def i1 (nth (:injections (second igc-data)) 4))
-(def inj1 (:injection-settings (second igc-data)))
-(def sched1 (:schedule (second igc-data)))
+(def use-data (second igc-data))
+(def use-data (first igc-data))
+(def i1 (nth (:injections use-data) 4))
+(def inj1 (:injection-settings use-data))
+(def sched1 (:schedule use-data))
 (def t1 (read-dataset i1 :header true))
-(def test-injs (take 200 (sort (:injections (second igc-data)))))
+(def test-injs (take 200 (sort (:injections use-data))))
 
 (def solvents (second (injection-config inj1 sched1)))
 (def solvent-names (into #{} (vals solvents)))
@@ -149,8 +159,18 @@
              :group-by :injection :legend false
              :title solvent)))
 
+(defn plot-solvent-fid
+  [solvent]
+  (let [data (plot-tables solvent)]
+    (println "Plotting" solvent (length (:rows data)) "rows..")
+    (xy-plot :sea_time :fid_signal :data data
+             :group-by :injection :legend false
+             :title solvent)))
+
+; (use '[incanter core io stats charts datasets])
+; (def p (plot-solvent "NONANE"))
+
 (comment
 (def sc1 (scatter-plot :sea_time :fid_signal :data t1))
 (def sc2 (xy-plot :sea_time :normalised :data sampled-t :group-by :injection :legend false))
   )
-
