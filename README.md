@@ -26,19 +26,5 @@ From igc/ run
     (write-se-data-files @machine-file @machine-dir)
     ;
     ; create and save the plots
-    (def p (bet-plot @machine-dir :amount-mmol))
-    (view p)
-    (save-plot p @machine-dir "BET-mmol")
-    (def p (injection-items-plot @machine-dir :partial-pressure :net-ret-vol-max "Volume [max] vs Partial Pressure"))
-    (view p)
-    (save-plot p @machine-dir "Volume-max-vs-Partial-Pressure") 
-    (def p (injection-items-plot @machine-dir :partial-pressure :net-ret-vol-com "Volume [com] vs Partial Pressure"))
-    (view p)
-    (save-plot p @machine-dir "Volume-com-vs-Partial-Pressure") 
-    (def p (injection-items-plot @machine-dir :actual-surface-coverage :net-ret-vol-max "Volume [max] vs Actual Surface Coverage"))
-    (view p)
-    (save-plot p @machine-dir "Volume-max-vs-Actual-Surface-Coverage") 
-    (def p (injection-items-plot @machine-dir :actual-surface-coverage :net-ret-vol-com "Volume [com] vs Actual Surface Coverage"))
-    (view p)
-    (save-plot p @machine-dir "Volume-com-vs-Actual-Surface-Coverage") 
+    (run-plots)
 

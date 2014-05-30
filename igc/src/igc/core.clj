@@ -123,6 +123,9 @@
 
 (def use-data (second igc-data))
 (def use-data (first igc-data))
+
+(def use-data (nth (vec igc-data) 0))
+
 (def i1 (nth (:injections use-data) 4))
 (def inj1 (:injection-settings use-data))
 (def sched1 (:schedule use-data))
