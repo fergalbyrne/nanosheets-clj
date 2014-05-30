@@ -204,6 +204,8 @@
 
                              :net-ret-vol-max "Net Retention Volume (max) [ml/g]"
                              :net-ret-vol-com "Net Retention Volume (com) [ml/g]"
+                             :net-ret-time-max "Net Retention Time (max) [min]"
+                             :net-ret-time-com "Net Retention Time (com) [min]"
                              :partial-pressure "Partial Pressure"
                              :amount-mmol "Amount [mMol]"
                              :amount-mmol-g "Amount [mMol/g]"
@@ -294,6 +296,12 @@
                  [(injection-items-plot @machine-dir :partial-pressure :net-ret-vol-com
                                "Volume [com] v Partial Pressure")
                   "Vol-com-v-Partial-Pressure"]
+                 [(injection-items-plot @machine-dir :partial-pressure :amount-mmol-g-max
+                               "Amount [max] v Partial Pressure")
+                  "Amt-max-v-Partial-Pressure"]
+                 [(injection-items-plot @machine-dir :partial-pressure :amount-mmol-g-com
+                               "Amount [com] v Partial Pressure")
+                  "Amt-com-v-Partial-Pressure"]
                  [(injection-items-plot @machine-dir :actual-surface-coverage
                                         :net-ret-vol-com
                                "Volume [com] v Actual Surface Coverage")
