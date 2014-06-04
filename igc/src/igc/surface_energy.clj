@@ -12,6 +12,12 @@
     (println "Saving plot to" fname)
     (save plot fname :width 1600 :height 1200)))
 
+(defn save-plot-data
+  [data m-dir plot-tag]
+  (let [fname (str m-dir "/" plot-tag "--" (fs/base-name m-dir) ".csv")]
+    (println "Saving data to" fname)
+    (save data fname)))
+
 
 (def antoine-params
   {"OCTANE" [13.9346 3123.13 209.635]
@@ -276,12 +282,14 @@
         ;_ (view data)
         ]
     data))
+
 (defn scientific [x]
   (clojure.string/replace (format "%.3g" x) #"e((\+|-)\d+)" "\\\\times10^{$1}"))
 
-(defn bet-plot [data-dir amt-col & {:keys [solvent] :or {solvent "OCTANE"}}]
+(defn bet-plot [data-dir amt-col plot-tag & {:keys [solvent] :or {solvent "OCTANE"}}]
   (let [solvent-data (solvent-properties data-dir :solvent_name :cross_sectional_area)
         data (bet-data data-dir amt-col)
+        _ (save-plot-data data data-dir plot-tag)
         plot (plot-maker data injection-items-titles
               :bet-ordinate :bet-value :solvent-name
                 (str "BET: " (injection-items-titles amt-col)))
@@ -300,18 +308,22 @@
         bet-constant (+ 1.0 (/ b a))
         cross-section (get solvent-data solvent)
         specific-area (* monolayer-capacity 0.001 cross-section avogadro)
-        lm-str (str "\\frac{p}{n(p^\\circ-p)}"
+        lm-str1 (str  "\\mathrm{" solvent ":}\\ "
+                      "\\frac{p}{n(p^\\circ-p)}"
                     "="
                     "\\frac{1}{n_\\mathrm{m}c}+"
-                    "\\frac{c-1}{n_\\mathrm{m}c}\\frac{p}{p^\\circ}"
-                    ",\\ "
-                    "{n_\\mathrm{m}}=" (scientific monolayer-capacity)
+                    "\\frac{c-1}{n_\\mathrm{m}c}\\frac{p}{p^\\circ}")
+        lm-str2 (str "{n_\\mathrm{m}}=" (scientific monolayer-capacity)
                     "\\ \\mathrm{mMol/g},\\ "
                     "c=" (scientific bet-constant) ",\\ "
                     "A_{BET}={n_\\mathrm{m}}{a_\\mathrm{m}}{N_\\mathrm{A}}"
                     "=" (scientific specific-area) "\\ \\mathrm{m}^2\\mathrm{/g}")
-        _ (println lm-str)
-        model-str (str "\\begin{align*}\n"
+        model-str (str "\n\n% Linear Model Info for " data-dir "\n"
+                       "% calculated using " amt-col " for " solvent "\n"
+                       "\\begin{align*}\n"
+                       "&" lm-str1 "\\\\\n"
+                       "&" lm-str2
+                       "\\\\\n"
                        "&\\mathrm{Linear\\ model\\ fitted:}\\ "
                        "\\frac{p}{n(p^\\circ-p)}=y=a+bx="
                        "\\frac{1}{n_\\mathrm{m}c}+"
@@ -319,14 +331,39 @@
                        ",\\\\\n"
                        "&a=\\frac{1}{n_\\mathrm{m}c}=" (scientific a) ",\\ "
                        "b=\\frac{c-1}{n_\\mathrm{m}c}=" (scientific b) ",\\\\\n"
-                       "&\\mathrm{Standard\\ Errors\\ (SER)} \\sigma_a="
+                       "&\\mathrm{Standard\\ Errors\\ (SER)}\\ \\sigma_a="
                        (scientific (first (:std-errors lm))) ",\\ \\sigma_b="
                        (scientific (second (:std-errors lm))) ",\\\\\n"
                        "&\\mathrm{Coefficient\\ of\\ Determination}\\ "
                        "R^2 = " (scientific (:r-square lm))
                        "\n\\end{align*}")
-        _ (println model-str)
-        plot (add-latex-subtitle plot lm-str)
+
+        caption-str (str "\\caption{(a) Adsorption isotherm for the adsorption of "
+                         (s/lower-case solvent) " at XXX K on MoS$_2$ \n"
+                         "sample centrifuged at 2000rpm (mixed bulk and nanosheets);\n"
+                         "(b) corresponding BET plots. The BET equation was calculated for "
+                         (s/lower-case solvent) ", yielding an estimate for "
+                         "$A_{BET}=" (scientific specific-area)
+                         "\\ \\mathrm{m}^2\\mathrm{/g}$.}\n\n")
+        m-name (fs/base-name data-dir)
+        figure-str (str "\\begin{figure}[htb]\n"
+                "\\subfloat[\\label{pic:sa-iso-" m-name "}]"
+                "{\\includegraphics[width=0.5\\textwidth]"
+                "{plots/igc/Amt-com-v-Partial-Pressure--" m-name ".png}}\n"
+                "\\hfill\n"
+                "\\subfloat[\\label{pic:sa-bet-" m-name "}]"
+                "{\\includegraphics[width=0.5\\textwidth]"
+                "{plots/igc/" plot-tag "--" m-name ".png}}\n"
+                caption-str
+                "\\label{fig:sa-" m-name "}\n"
+                "\\end{figure}")
+        lm-str (str lm-str1 ",\\ " lm-str2)
+        ;_ (println lm-str)
+        tex-str (str model-str "\n\n% Figure for table showing plots.\n\n" figure-str "\n\n\n")
+        _ (println tex-str)
+        _ (spit (str data-dir "/" plot-tag "--" (fs/base-name data-dir) ".tex") tex-str)
+        plot (add-latex-subtitle plot lm-str2)
+        plot (add-latex plot 0.1 0.3 lm-str1 :background false)
         ;_ (view data)
         ]
     plot))
@@ -341,10 +378,10 @@
 (defn run-plots []
   (let [m-dir @machine-dir
         m-name (fs/base-name m-dir)]
-    (doseq [[p f] [[(bet-plot m-dir :amount-mmol) "BET-mMol"]
-                   [(bet-plot m-dir :amount-mmol-g) "BET-mMol-g"]
-                   [(bet-plot m-dir :amount-mmol-g-max) "BET-mMol-g-max"]
-                   [(bet-plot m-dir :amount-mmol-g-com) "BET-mMol-g-com"]
+    (doseq [[p f] [#_[(bet-plot m-dir :amount-mmol) "BET-mMol"]
+                   #_[(bet-plot m-dir :amount-mmol-g) "BET-mMol-g"]
+                   [(bet-plot m-dir :amount-mmol-g-max "BET-mMol-g-max") "BET-mMol-g-max"]
+                   [(bet-plot m-dir :amount-mmol-g-com "BET-mMol-g-com") "BET-mMol-g-com"]
                    [(injection-items-plot m-dir :partial-pressure :net-ret-vol-max
                                "Volume [max] v Partial Pressure")
                   "Vol-max-v-Partial-Pressure"]
@@ -367,20 +404,7 @@
                   "Vol-max-v-Actual-Surface-Coverage"]
                ]]
     (view p)
-    (save-plot p m-dir f))
-  (println (str "\\begin{figure}[htb]\n"
-                "\\subfloat[\\label{pic:sa-iso-" m-name "}]"
-                "{\\includegraphics[width=0.5\\textwidth]"
-                "{plots/igc/Amt-com-v-Partial-Pressure--" m-name ".png}}\n"
-                "\\hfill\n"
-                "\\subfloat[\\label{pic:sa-bet-" m-name "}]"
-                "{\\includegraphics[width=0.5\\textwidth]"
-                "{plots/igc/BET-mMol-g-com--" m-name ".png}}\n"
-                "\\caption{(a) Adsorption isotherm for the adsorption of "
-                "octane at 303.15 K on MoS$_2$;"
-                "(b) corresponding BET plot.}\n"
-                "\\label{fig:sa-" m-name "}\n"
-                "\\end{figure}"))))
+    (save-plot p m-dir f))))
 
 (comment
   (use '[incanter core io stats charts datasets])
