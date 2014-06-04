@@ -18,7 +18,7 @@ From igc/ run
 
     ; load the code
     (use '[igc surface-energy util] :reload)
-    (use '[incanter core io stats charts datasets])
+    (use '[incanter core io stats charts datasets latex])
     ;
     ; provide the directory name and machine file locations
     (set-machine-location! "../Nanosheets-Prep-II-2000rpm-12mg-01-3mm-30C-S1-SA-10ml" "SA-2k-12mg-S1.csv")
