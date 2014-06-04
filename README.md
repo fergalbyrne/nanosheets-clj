@@ -17,7 +17,7 @@ From igc/ run
 ### Surface Area Plots
 
     ; load the code
-    (use 'igc.surface-energy :reload)
+    (use '[igc surface-energy util] :reload)
     (use '[incanter core io stats charts datasets])
     ;
     ; provide the directory name and machine file locations
