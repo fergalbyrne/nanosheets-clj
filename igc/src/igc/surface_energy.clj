@@ -1,11 +1,10 @@
 (ns igc.surface-energy
-  (:use [incanter core io stats charts datasets])
+  (:use [incanter core io stats charts datasets latex])
   (:require [me.raynes.fs :as fs]
-            [clojure.string :as s])
+            [clojure.string :as s]
+            [igc.util :refer :all])
   (:gen-class :main true))
 
-(def machine-dir (atom "../Reference-As-Supplied-100mg-3mm-30C-S1-SA-10ml"))
-(def machine-file (atom (str @machine-dir "/SA-ref-100mg.csv")))
 
 (defn save-plot
   [plot m-dir plot-tag]
@@ -39,11 +38,6 @@
     (* (/ 760.0 101.325) ; convert to Torr
        (Math/pow Math/E (- A (/ B (+ t C)))))))
 
-
-(defn set-machine-location!
-  [d f]
-  (reset! machine-dir d)
-  (reset! machine-file (str @machine-dir "/" f)))
 
 (defn tag-data [data col tag]
 	(add-derived-column col [] #(str tag) data))
@@ -257,7 +251,7 @@
   (plot-maker data injection-items-titles
               xcol ycol :solvent-name title)))
 
-(defn bet-plot [data-dir amt-col]
+(defn bet-data [data-dir amt-col]
   (let [solvent-data (solvent-properties data-dir :solvent_name :criticalPressure)
         data (data-loader data-dir "injection-items" injection-items-cols)
         data ($where ($fn [injection-name](re-matches #"injection.*" injection-name))
@@ -281,43 +275,117 @@
                                                   (< bet-ordinate 0.6)))))
         ;_ (view data)
         ]
-    (plot-maker data injection-items-titles
+    data))
+(defn scientific [x]
+  (clojure.string/replace (format "%.3g" x) #"e((\+|-)\d+)" "\\\\times10^{$1}"))
+
+(defn bet-plot [data-dir amt-col & {:keys [solvent] :or {solvent "OCTANE"}}]
+  (let [solvent-data (solvent-properties data-dir :solvent_name :cross_sectional_area)
+        data (bet-data data-dir amt-col)
+        plot (plot-maker data injection-items-titles
               :bet-ordinate :bet-value :solvent-name
-                (str "BET: " (injection-items-titles amt-col)))))
+                (str "BET: " (injection-items-titles amt-col)))
+        avogadro 6.0221413e+23
+        lm-data (->> data
+                     ($where ($fn [bet-ordinate solvent-name]
+                                  (and (= solvent-name solvent)
+                                       (>= bet-ordinate 0.05)
+                                       (<= bet-ordinate 0.35)))))
+        lm-x (to-matrix (sel lm-data :cols [:bet-ordinate]))
+        lm-y (to-matrix (sel lm-data :cols [:bet-value]))
+        lm (linear-model lm-y lm-x)
+        [a b] (:coefs lm)
+        plot (add-lines plot lm-x (:fitted lm) :series-label "Linear Model")
+        monolayer-capacity (/ 1.0 (+ a b))
+        bet-constant (+ 1.0 (/ b a))
+        cross-section (get solvent-data solvent)
+        specific-area (* monolayer-capacity 0.001 cross-section avogadro)
+        lm-str (str "\\frac{p}{n(p^\\circ-p)}"
+                    "="
+                    "\\frac{1}{n_\\mathrm{m}c}+"
+                    "\\frac{c-1}{n_\\mathrm{m}c}\\frac{p}{p^\\circ}"
+                    ",\\ "
+                    "{n_\\mathrm{m}}=" (scientific monolayer-capacity)
+                    "\\ \\mathrm{mMol/g},\\ "
+                    "c=" (scientific bet-constant) ",\\ "
+                    "A_{BET}={n_\\mathrm{m}}{a_\\mathrm{m}}{N_\\mathrm{A}}"
+                    "=" (scientific specific-area) "\\ \\mathrm{m}^2\\mathrm{/g}")
+        _ (println lm-str)
+        model-str (str "\\begin{align*}\n"
+                       "&\\mathrm{Linear\\ model\\ fitted:}\\ "
+                       "\\frac{p}{n(p^\\circ-p)}=y=a+bx="
+                       "\\frac{1}{n_\\mathrm{m}c}+"
+                       "\\frac{c-1}{n_\\mathrm{m}c}\\frac{p}{p^\\circ}"
+                       ",\\\\\n"
+                       "&a=\\frac{1}{n_\\mathrm{m}c}=" (scientific a) ",\\ "
+                       "b=\\frac{c-1}{n_\\mathrm{m}c}=" (scientific b) ",\\\\\n"
+                       "&\\mathrm{Standard\\ Errors\\ (SER)} \\sigma_a="
+                       (scientific (first (:std-errors lm))) ",\\ \\sigma_b="
+                       (scientific (second (:std-errors lm))) ",\\\\\n"
+                       "&\\mathrm{Coefficient\\ of\\ Determination}\\ "
+                       "R^2 = " (scientific (:r-square lm))
+                       "\n\\end{align*}")
+        _ (println model-str)
+        plot (add-latex-subtitle plot lm-str)
+        ;_ (view data)
+        ]
+    plot))
+
+(comment
+  (def d (bet-data @machine-dir :amount-mmol-g-com))
+  (def lm-x (to-matrix (sel d :cols [:bet-ordinate])))
+  (def lm-y (to-matrix (sel d :cols [:bet-value])))
+  (def lm (linear-model lm-y lm-x))
+  )
 
 (defn run-plots []
-  (doseq [[p f] [[(bet-plot @machine-dir :amount-mmol) "BET-mMol"]
-                 [(bet-plot @machine-dir :amount-mmol-g) "BET-mMol-g"]
-                 [(bet-plot @machine-dir :amount-mmol-g-max) "BET-mMol-g-max"]
-                 [(bet-plot @machine-dir :amount-mmol-g-com) "BET-mMol-g-com"]
-                 [(injection-items-plot @machine-dir :partial-pressure :net-ret-vol-max
+  (let [m-dir @machine-dir
+        m-name (fs/base-name m-dir)]
+    (doseq [[p f] [[(bet-plot m-dir :amount-mmol) "BET-mMol"]
+                   [(bet-plot m-dir :amount-mmol-g) "BET-mMol-g"]
+                   [(bet-plot m-dir :amount-mmol-g-max) "BET-mMol-g-max"]
+                   [(bet-plot m-dir :amount-mmol-g-com) "BET-mMol-g-com"]
+                   [(injection-items-plot m-dir :partial-pressure :net-ret-vol-max
                                "Volume [max] v Partial Pressure")
                   "Vol-max-v-Partial-Pressure"]
-                 [(injection-items-plot @machine-dir :partial-pressure :net-ret-vol-com
+                   [(injection-items-plot m-dir :partial-pressure :net-ret-vol-com
                                "Volume [com] v Partial Pressure")
                   "Vol-com-v-Partial-Pressure"]
-                 [(injection-items-plot @machine-dir :partial-pressure :amount-mmol-g-max
+                   [(injection-items-plot m-dir :partial-pressure :amount-mmol-g-max
                                "Amount [max] v Partial Pressure")
                   "Amt-max-v-Partial-Pressure"]
-                 [(injection-items-plot @machine-dir :partial-pressure :amount-mmol-g-com
+                   [(injection-items-plot m-dir :partial-pressure :amount-mmol-g-com
                                "Amount [com] v Partial Pressure")
                   "Amt-com-v-Partial-Pressure"]
-                 [(injection-items-plot @machine-dir :actual-surface-coverage
+                   [(injection-items-plot m-dir :actual-surface-coverage
                                         :net-ret-vol-com
                                "Volume [com] v Actual Surface Coverage")
                   "Vol-com-v-Actual-Surface-Coverage"]
-                 [(injection-items-plot @machine-dir :actual-surface-coverage
+                   [(injection-items-plot m-dir :actual-surface-coverage
                                         :net-ret-vol-max
                                "Volume [max] v Actual Surface Coverage")
                   "Vol-max-v-Actual-Surface-Coverage"]
                ]]
     (view p)
-    (save-plot p @machine-dir f)))
+    (save-plot p m-dir f))
+  (println (str "\\begin{figure}[htb]\n"
+                "\\subfloat[\\label{pic:sa-iso-" m-name "}]"
+                "{\\includegraphics[width=0.5\\textwidth]"
+                "{plots/igc/Amt-com-v-Partial-Pressure--" m-name ".png}}\n"
+                "\\hfill\n"
+                "\\subfloat[\\label{pic:sa-bet-" m-name "}]"
+                "{\\includegraphics[width=0.5\\textwidth]"
+                "{plots/igc/BET-mMol-g-com--" m-name ".png}}\n"
+                "\\caption{(a) Adsorption isotherm for the adsorption of "
+                "octane at 303.15 K on MoS$_2$;"
+                "(b) corresponding BET plot.}\n"
+                "\\label{fig:sa-" m-name "}\n"
+                "\\end{figure}"))))
 
 (comment
   (use '[incanter core io stats charts datasets])
   (use 'igc.surface-energy :reload)
-
+(use '[igc surface-energy util] :reload)
   (set-machine-location! "../Nanosheets-Prep-II-2000rpm-12mg-01-3mm-30C-S1-SA-10ml" "SA-2k-12mg-S1.csv")
   (write-se-data-files @machine-file @machine-dir)
   (run-plots)
