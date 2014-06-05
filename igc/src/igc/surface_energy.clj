@@ -442,6 +442,8 @@
   (set-machine-location! "../Reference-As-Supplied-13mg-2mm-100C-S3-SA-10ml" "Reference-13mg-S3-SA-100C.csv")
   (set-machine-location! "../Reference-As-Supplied-13mg-2mm-30C-S1-SA-10ml" "Reference-13mg-S1-SA-30C.csv")
   (set-machine-location! "../Reference-As-Supplied-13mg-2mm-30C-S3-SA-10ml" "Reference-13mg-S3-SA-30C.csv")
+  (set-machine-location! "../Reference-As-Supplied-5mg-3mm-30C-S1-SA-10ml" "ref-5mg-SA-30C-S1.csv")
+
 
   ;(set-machine-location! "../
 
