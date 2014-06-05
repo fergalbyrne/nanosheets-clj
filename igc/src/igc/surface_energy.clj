@@ -294,6 +294,7 @@
               :bet-ordinate :bet-value :solvent-name
                 (str "BET: " (injection-items-titles amt-col)))
         avogadro 6.0221413e+23
+        _ (println "Linear Model..")
         lm-data (->> data
                      ($where ($fn [bet-ordinate solvent-name]
                                   (and (= solvent-name solvent)
@@ -303,6 +304,7 @@
         lm-y (to-matrix (sel lm-data :cols [:bet-value]))
         lm (linear-model lm-y lm-x)
         [a b] (:coefs lm)
+        _ (println "Adding Linear Model..")
         plot (add-lines plot lm-x (:fitted lm) :series-label "Linear Model")
         monolayer-capacity (/ 1.0 (+ a b))
         bet-constant (+ 1.0 (/ b a))
@@ -380,8 +382,6 @@
         m-name (fs/base-name m-dir)]
     (doseq [[p f] [#_[(bet-plot m-dir :amount-mmol) "BET-mMol"]
                    #_[(bet-plot m-dir :amount-mmol-g) "BET-mMol-g"]
-                   [(bet-plot m-dir :amount-mmol-g-max "BET-mMol-g-max") "BET-mMol-g-max"]
-                   [(bet-plot m-dir :amount-mmol-g-com "BET-mMol-g-com") "BET-mMol-g-com"]
                    [(injection-items-plot m-dir :partial-pressure :net-ret-vol-max
                                "Volume [max] v Partial Pressure")
                   "Vol-max-v-Partial-Pressure"]
@@ -402,6 +402,8 @@
                                         :net-ret-vol-max
                                "Volume [max] v Actual Surface Coverage")
                   "Vol-max-v-Actual-Surface-Coverage"]
+                   [(bet-plot m-dir :amount-mmol-g-com "BET-mMol-g-com") "BET-mMol-g-com"]
+                   [(bet-plot m-dir :amount-mmol-g-max "BET-mMol-g-max") "BET-mMol-g-max"]
                ]]
     (view p)
     (save-plot p m-dir f))))
@@ -429,6 +431,19 @@
   (set-machine-location! "../Reference-As-Supplied-100mg-3mm-30C-S1-SA-10ml" "SA-ref-100mg.csv")
   (write-se-data-files @machine-file @machine-dir)
   (run-plots)
+
+  (set-machine-location! "../Nanosheets-Prep-I-1500rpm-10mg-01-3mm-30C-S1-SA-10ml" "nanosheet-Prep-I-1_5k-10mg-3mm-S1-SA-30C.csv")
+
+  (set-machine-location! "../Nanosheets-Prep-I-1500rpm-10mg-01-3mm-30C-S1-SA-10ml-run2" "nanosheet-Prep-I-1_5k-10mg-3mm-S1-SA-30C-run2.csv")
+  (set-machine-location! "../Nanosheets-Prep-I-1500rpm-10mg-01-3mm-30C-S2-SA-10ml" "nanosheet-Prep-I-1_5k-10mg-3mm-S2-SA-30C.csv")
+  (set-machine-location! "../Nanosheets-Prep-I-750rpm-20mg-01-3mm-30C-S1-SA-10ml" "nanosheet-prep-I-750rpm-20mg-3mm-S1-SA-30C.csv")
+  (set-machine-location! "../Nanosheets-Prep-I-750rpm-20mg-01-3mm-30C-S2-SA-10ml" "nanosheet-prep-I-750rpm-20mg-3mm-S2-SA-30C.csv")
+  ; causes problems
+  (set-machine-location! "../Reference-As-Supplied-13mg-2mm-100C-S3-SA-10ml" "Reference-13mg-S3-SA-100C.csv")
+  (set-machine-location! "../Reference-As-Supplied-13mg-2mm-30C-S1-SA-10ml" "Reference-13mg-S1-SA-30C.csv")
+  (set-machine-location! "../Reference-As-Supplied-13mg-2mm-30C-S3-SA-10ml" "Reference-13mg-S3-SA-30C.csv")
+
+  ;(set-machine-location! "../
 
   (def p (bet-plot @machine-dir :amount-mmol))
   (view p)

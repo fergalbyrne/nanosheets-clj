@@ -1,0 +1,13 @@
+"injection_table_name","solventReservoir_ID","target_surface_coverage","stage_time","FIDGain","target_Temperature_Column_Oven","flow_Rate","target_column_rh"
+"injection1",3,1064.82266581598,15,100,30,10,0
+"injection10",3,9438.378381989451,5,1,30,10,0
+"injection11",3,10631.1292396805,5,1,30,10,0
+"injection12",3,11834.9652523581,4,1,30,10,0
+"injection2",3,2063.26667454515,15,100,30,10,0
+"injection3",3,2999.25014203801,10,10,30,10,0
+"injection4",3,3877.15428519128,10,10,30,10,0
+"injection5",3,4701.76186902939,10,10,30,10,0
+"injection6",3,5478.19360836614,5,10,30,10,0
+"injection7",3,6211.84329864267,5,1,30,10,0
+"injection8",3,6908.31641075474,5,1,30,10,0
+"injection9",3,8212.821816277979,5,1,30,10,0
