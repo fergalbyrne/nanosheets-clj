@@ -1,0 +1,22 @@
+<SampleColumnSettings>
+  <FileVersion>1.00</FileVersion>
+  <Column>
+    <ID>MoS2raw_SE_100C</ID>
+    <DiameterInMM>2.0</DiameterInMM>
+  </Column>
+  <Sample>
+    <Name>MoS2raw_SE_100C</Name>
+    <Description>MoS2raw_SE_100C</Description>
+    <Structure>PARTICULATE</Structure>
+    <Density>5.0600</Density>
+    <BET>
+      <Known>TRUE</Known>
+      <AverageDiameter>0.0000</AverageDiameter>
+      <AverageLength>0.000</AverageLength>
+      <Value>11.2400</Value>
+    </BET>
+    <ClassOfMaterial>INORGANIC</ClassOfMaterial>
+    <Porosity>UNKNOWN</Porosity>
+    <Mass>13.0000</Mass>
+  </Sample>
+</SampleColumnSettings>
