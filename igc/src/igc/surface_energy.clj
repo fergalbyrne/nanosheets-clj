@@ -11,6 +11,9 @@
    [:code :ref-1-supplied-sa-s1-100mg
     :dir "Reference-As-Supplied-100mg-3mm-30C-S1-SA-10ml"
     :machine-file "SA-ref-100mg.csv"]
+   [:code :ref-1-supplied-se-s1-100mg
+    :dir "Reference-As-Supplied-100mg-3mm-50C-S1-SE-10ml"
+    :machine-file "SE-ref-100mg.csv"]
    [:code :ref-1-supplied-sa-s3-13mg
     :dir "Reference-As-Supplied-13mg-2mm-100C-S3-SA-10ml"
     :machine-file "Reference-13mg-S3-SA-100C.csv"]
@@ -666,7 +669,7 @@
   (write-se-data-files @machine-file @machine-dir)
   (run-plots :plot-set :surface-energy)
 
-
+  (set-machine-location! "../Reference-As-Supplied-100mg-3mm-50C-S1-SE-10ml" "SE-ref-100mg.csv")
   ;(set-machine-location! "../
 
   (def p (bet-plot @machine-dir :amount-mmol))
