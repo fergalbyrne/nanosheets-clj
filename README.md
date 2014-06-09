@@ -28,4 +28,7 @@ From igc/ run
     ;
     ; create and save the plots
     (run-plots)
+    ; if the data is surface energy data, run this:
+    (run-plots :plot-set :surface-energy)
+    
 
