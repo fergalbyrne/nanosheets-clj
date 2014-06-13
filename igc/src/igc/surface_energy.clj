@@ -235,6 +235,13 @@
                         :en-dng-com "Disp. Surf. En. (mJ/m^2) - DnG & Com"
                         })
 
+(def dispersive-legend-titles {:n-nm "n/n_m"
+                        :en-stz-max "Schultz [max]"
+                        :en-stz-com "Schultz [cpm]"
+                        :en-dng-max "Dorris-Gray [max]"
+                        :en-dng-com "Dorris-Gray [com]"
+                        })
+
 ;Injection Items
 ;ID	Injection Name	Solvent	Injection Time [ms]	Duration [min]
 ;Target Fractional Surface Coverage	Actual Fractional Surface Coverage
@@ -301,12 +308,68 @@
                              :bet-value "p/ν(p0-p)"
                              })
 
+  (def codes [:nano-1-750-sa-s1-20mg
+              :nano-1-750-sa-s2-20mg
+              :nano-1-1500-sa-s2-10mg
+              :nano-2-2000-sa-s1-12mg
+              :nano-2-2000-sa-s2-12mg
+              :nano-1-3000-sa-s1-8mg
+              :nano-2-4000-sa-s1-3mg]
+    )
+    (def sa-codes [:nano-1-750-sa-s1-20mg
+              :nano-1-750-sa-s2-20mg
+              :nano-1-1500-sa-s2-10mg
+              :nano-2-2000-sa-s1-12mg
+              :nano-2-2000-sa-s2-12mg
+              :nano-1-3000-sa-s1-8mg
+              :nano-2-4000-sa-s1-3mg]
+    )
+    (def sa-labels
+      {:nano-1-750-sa-s1-20mg "750rpm 20mg (S1)"
+              :nano-1-750-sa-s2-20mg "750rpm 20mg (S2)"
+              :nano-1-1500-sa-s2-10mg "1500rpm 10mg (S2)"
+              :nano-2-2000-sa-s1-12mg "2Krpm 12mg (S1)"
+              :nano-2-2000-sa-s2-12mg "2Krpm 12mg (S2)"
+              :nano-1-3000-sa-s1-8mg "3Krpm 8mg (S1)"
+              :nano-2-4000-sa-s1-3mg "4Krpm 3mg (S1)"
+       }
+    )
+
 (defn solvent-properties
   [data-dir key-col val-col]
   (let [data (read-dataset (str data-dir "/export/solventReservoirs.csv")
                      :header true)
         data-map (into {} ($map (fn [k v] {k v}) [key-col val-col] data))]
     data-map))
+
+(def solvent-symbols
+  (map keyword '[reservoirId solvent_name is_dispersive cross_sectional_area
+                 dispersive_surface_tension molecular_mass liquid_density
+                 boiling_pt criticalPressure]))
+
+(defn solvent-table
+  [data-dir]
+  (let [data (read-dataset (str data-dir "/export/solventReservoirs.csv")
+                     :header true)
+        data (sel data :cols solvent-symbols)
+        rows (s/join "\\\\\n  "
+                     ($map (fn [& items]
+                             (s/join " & " items)) solvent-symbols
+                           data))]
+    (str "
+\\begin{table}[htb]
+ \\begin{tabular}{l l c c c c c c l}
+ \\toprule
+  Id & Solvent  & Dispersive  & $a_\\mathrm{p}$ & ${\\Gamma_L}^D$ & Mol. Mass "
+" & $\\rho_L$ & $T_B (^\\circ C)$ & $p_\\mathrm{crit}$ \\\\
+  \\midrule
+  "
+rows
+"\\\\
+  \\bottomrule
+ \\end{tabular}
+\\caption{Solvent reservoir data}
+\\end{table}")))
 
 
 (defn bet-value [p p0 n] (/ p (* n (- p0 p))))
@@ -320,12 +383,14 @@
        (rename-cols col-map)))
 
 (defn plot-maker
-  [data title-map x-col y-col grp-col title & {:keys [legend] :or {legend false}}]
+  [data title-map x-col y-col grp-col title & {:keys [legend series-label] :or {legend false series-label (title-map y-col)}}]
   (xy-plot x-col y-col :data data
-             :group-by grp-col :legend legend
+             :group-by grp-col
+           :legend legend
              :x-label (title-map x-col)
              :y-label (title-map y-col)
              :title title
+           :series-label series-label
            :points true))
 
 (defn free-energy-plot [data-dir xcol ycol title]
@@ -339,19 +404,47 @@
   (let [data (data-loader data-dir "injection-items" injection-items-cols)
         data ($where ($fn [injection-name](re-matches #"injection.*" injection-name))
                      data)
+        data ($order :solvent-name :asc data)
         ;_ (view data)
         ]
   (plot-maker data injection-items-titles
               xcol ycol :solvent-name title :legend legend)))
 
+(defn by-solvent
+  [solvent data]
+  ($where ($fn [solvent-name] (= solvent solvent-name)) data))
+
+(defn solvents-plot
+  [data-dir xcol ycol title & {:keys [legend] :or {legend false}}]
+  (let [data (data-loader data-dir "injection-items" injection-items-cols)
+        data ($where ($fn [injection-name](re-matches #"injection.*" injection-name))
+                     data)
+        data ($order :solvent-name :asc data)
+        solvents (vec (set (sel data :cols :solvent-name)))
+        ;_ (view data)
+        ;_ (println solvents)
+        solvent (first solvents)
+        solvent-data (by-solvent solvent data)
+        plot (plot-maker solvent-data injection-items-titles
+              xcol ycol :solvent-name title :legend legend)
+        ]
+    (reduce (fn [p solvent]
+                       (add-lines p xcol ycol
+                                  :data (by-solvent solvent data)
+                                  :series-label solvent
+                                  :points true))
+                     plot
+                     (rest solvents))))
+
 (defn injection-plots
-  [root codes xcol ycol title & {:keys [solvent] :or {solvent "OCTANE"}}]
+  [root codes labels xcol ycol title & {:keys [solvent] :or {solvent "OCTANE"}}]
   (let [dirs (map :dir (vals (select-keys machine-data codes)))
-        _ (println dirs)
+        ;_ (println dirs)
         first-dir (:dir ((first codes) machine-data))
         _ (set-machine-location! (str root "/" first-dir) (machine-files first-dir))
-        data-sets (for [dir dirs]
-                    (let [data-dir (str root "/" dir)
+        data-sets (for [code codes]
+                    (let [dir (:dir (code machine-data))
+                          data-dir (str root "/" dir)
                           fname (fs/base-name data-dir)
                           _ (println "loading " fname)
                           data (data-loader data-dir "injection-items" injection-items-cols)
@@ -359,15 +452,15 @@
                                    data)
                           data ($where ($fn [solvent-name](= solvent-name solvent))
                                    data)
-                          data (add-derived-column :dir [] (fn [] fname) data)]
-                      [fname data]))
+                          data (add-derived-column :dir [] (fn [] (labels code)) data)]
+                      [code data]))
         first-data (first data-sets)
         plot (plot-maker (second first-data) injection-items-titles
-              xcol ycol :dir title :legend true :series-label (first codes))]
+              xcol ycol :dir title :legend true :series-label (labels (first codes)))]
     (reduce (fn [p data-tuple]
                        (add-lines p xcol ycol
                                   :data (second data-tuple)
-                                  :series-label (first data-tuple)
+                                  :series-label (labels (first data-tuple))
                                   :points true))
                      plot
                      (rest data-sets))))
@@ -389,14 +482,15 @@
         plot (xy-plot :n-nm :en-dng-com :data data
              :legend true
              :x-label (dispersive-titles :n-nm)
-             :y-label (dispersive-titles :en-dng-com)
+             :y-label "Dispersive Surface Energy (mJ/m^2)"
+                      :series-label (dispersive-legend-titles :en-dng-com)
              :title "Dispersive Surface Energy"
            :points true)
         plot (reduce (fn [p col]
                        (add-lines p :n-nm col
                                   :data data
                                   :points true
-                                  :series-label (dispersive-titles col)))
+                                  :series-label (dispersive-legend-titles col)))
                      plot
                      [:en-dng-max :en-stz-com :en-stz-max])]
   plot))
@@ -516,41 +610,42 @@
         tex-str (str model-str "\n\n% Figure for table showing plots.\n\n" figure-str "\n\n\n")
         _ (println tex-str)
         _ (spit (str data-dir "/" plot-tag "--" (fs/base-name data-dir) ".tex") tex-str)
-        plot (add-latex-subtitle plot lm-str2)
-        plot (add-latex plot 0.1 (* a 0.6) lm-str1 :background false)
+        ;plot (add-latex-subtitle plot lm-str2)
+        ;plot (add-latex plot 0.1 (* a 0.6) lm-str1 :background false)
         ;_ (view data)
         ]
     plot))
 
 (defn bet-plots
-  [root codes ycol & {:keys [solvent] :or {solvent "OCTANE"}}]
+  [root codes labels ycol & {:keys [solvent] :or {solvent "OCTANE"}}]
   (let [dirs (map :dir (vals (select-keys machine-data codes)))
         ;_ (println dirs)
         first-dir (:dir ((first codes) machine-data))
         _ (set-machine-location! (str root "/" first-dir) (machine-files first-dir))
-        data-sets (for [dir dirs]
-                    (let [data-dir (str root "/" dir)
+        data-sets (for [code codes]
+                    (let [dir (:dir (code machine-data))
+                          data-dir (str root "/" dir)
                           fname (fs/base-name data-dir)
                           _ (println "loading " fname)
                           data (bet-data data-dir ycol)
                           ;_ (view data)
                           data ($where ($fn [solvent-name](= solvent-name solvent))
-                                   data)
-                          data (add-derived-column :dir [] (fn [] fname) data)]
+                                       data)
+                          data (add-derived-column :dir [] (fn [] (labels code)) data)]
                       data))
         first-data (first data-sets)
         plot (plot-maker first-data injection-items-titles
-              :bet-ordinate :bet-value :dir
-                (str "BET: " (injection-items-titles ycol))
-                    :legend true :series-label (first codes))
+                         :bet-ordinate :bet-value :dir
+                         (str "BET: " (injection-items-titles ycol))
+                         :legend true :series-label (labels (first codes)))
         ;_ (view plot)
         ]
     (reduce (fn [p [data code]]
-                       (add-lines p :bet-ordinate :bet-value
-                                  :data data
-                                  :series-label code
-                                  :points true))
-                     plot
+              (add-lines p :bet-ordinate :bet-value
+                         :data data
+                         :series-label (labels code)
+                         :points true))
+            plot
             (map vector (rest data-sets) (rest codes)))))
 
 
@@ -564,43 +659,65 @@
 (defn run-plots [& {:keys [plot-set legend] :or {plot-set :surface-area legend false}}]
   (let [m-dir @machine-dir
         m-name (fs/base-name m-dir)
-        plot-seq [[(injection-items-plot m-dir :partial-pressure :net-ret-vol-max
-                               "Volume [max] v Partial Pressure" :legend legend)
-                  "Vol-max-v-Partial-Pressure"]
-                   [(injection-items-plot m-dir :partial-pressure :net-ret-vol-com
-                               "Volume [com] v Partial Pressure" :legend legend)
-                  "Vol-com-v-Partial-Pressure"]
-                   [(injection-items-plot m-dir :partial-pressure :amount-mmol-g-max
-                               "Amount [max] v Partial Pressure" :legend legend)
-                  "Amt-max-v-Partial-Pressure"]
-                   [(injection-items-plot m-dir :partial-pressure :amount-mmol-g-com
-                               "Amount [com] v Partial Pressure" :legend legend)
-                  "Amt-com-v-Partial-Pressure"]
-                   [(injection-items-plot m-dir :actual-surface-coverage
-                                        :net-ret-vol-com
-                               "Volume [com] v Actual Surface Coverage" :legend legend)
-                  "Vol-com-v-Actual-Surface-Coverage"]
-                   [(injection-items-plot m-dir :actual-surface-coverage
-                                        :net-ret-vol-max
-                               "Volume [max] v Actual Surface Coverage" :legend legend)
-                  "Vol-max-v-Actual-Surface-Coverage"]
-
-               ]
+        plot-seq [
+                  ]
         extra-plots (if (= plot-set :surface-area)
                       [#_[(bet-plot m-dir :amount-mmol) "BET-mMol"]
-                           #_[(bet-plot m-dir :amount-mmol-g) "BET-mMol-g"]
-                           [(bet-plot m-dir :amount-mmol-g-com "BET-mMol-g-com") "BET-mMol-g-com"]
-                           [(bet-plot m-dir :amount-mmol-g-max "BET-mMol-g-max") "BET-mMol-g-max"]]
+                       #_[(bet-plot m-dir :amount-mmol-g) "BET-mMol-g"]
+                       [(injection-items-plot m-dir :partial-pressure :net-ret-vol-com
+                                              "Volume [com] v Partial Pressure" :legend legend)
+                        "Vol-com-v-Partial-Pressure"]
+                       [(injection-items-plot m-dir :partial-pressure :net-ret-vol-max
+                                              "Volume [max] v Partial Pressure" :legend legend)
+                        "Vol-max-v-Partial-Pressure"]
+                       [(injection-items-plot m-dir :partial-pressure :amount-mmol-g-max
+                                              "Amount [max] v Partial Pressure" :legend legend)
+                        "Amt-max-v-Partial-Pressure"]
+                       [(injection-items-plot m-dir :partial-pressure :amount-mmol-g-com
+                                              "Amount [com] v Partial Pressure" :legend legend)
+                        "Amt-com-v-Partial-Pressure"]
+                       [(injection-items-plot m-dir :actual-surface-coverage
+                                              :net-ret-vol-com
+                                              "Volume [com] v Actual Surface Coverage" :legend legend)
+                        "Vol-com-v-Actual-Surface-Coverage"]
+                       [(injection-items-plot m-dir :actual-surface-coverage
+                                              :net-ret-vol-max
+                                              "Volume [max] v Actual Surface Coverage" :legend legend)
+                        "Vol-max-v-Actual-Surface-Coverage"]
+                       [(bet-plot m-dir :amount-mmol-g-com "BET-mMol-g-com") "BET-mMol-g-com"]
+                       [(bet-plot m-dir :amount-mmol-g-max "BET-mMol-g-max") "BET-mMol-g-max"]]
                       [[(dispersive-plot m-dir :n-nm :en-stz-max
-                               "Dispersive Energy (Schultz) [max] vs n/n_m")
-                               "DSE-Schultz-max"]
+                                         "Dispersive Energy (Schultz) [max] vs n/n_m")
+                        "DSE-Schultz-max"]
                        [(dispersive-plots m-dir)
-                               "Dispersive-Surface-Energy"]
+                        "Dispersive-Surface-Energy"]
+                       [(solvents-plot m-dir :partial-pressure :net-ret-vol-com
+                                       "Volume [com] v Partial Pressure" :legend legend)
+                        "Vol-com-v-Partial-Pressure"]
+                       [(solvents-plot m-dir :partial-pressure :net-ret-vol-max
+                                       "Volume [max] v Partial Pressure" :legend legend)
+                        "Vol-max-v-Partial-Pressure"]
+                       [(solvents-plot m-dir :partial-pressure :amount-mmol-g-max
+                                       "Amount [max] v Partial Pressure" :legend legend)
+                        "Amt-max-v-Partial-Pressure"]
+                       [(solvents-plot m-dir :partial-pressure :amount-mmol-g-com
+                                       "Amount [com] v Partial Pressure" :legend legend)
+                        "Amt-com-v-Partial-Pressure"]
+                       [(solvents-plot m-dir :actual-surface-coverage
+                                       :net-ret-vol-com
+                                       "Volume [com] v Actual Surface Coverage" :legend legend)
+                        "Vol-com-v-Actual-Surface-Coverage"]
+                       [(solvents-plot m-dir :actual-surface-coverage
+                                       :net-ret-vol-max
+                                       "Volume [max] v Actual Surface Coverage" :legend legend)
+                        "Vol-max-v-Actual-Surface-Coverage"]
                        ])
         plot-seq (reduce conj plot-seq extra-plots)]
     (doseq [[p f] plot-seq]
-    (view p)
-    (save-plot p m-dir f))))
+      (view p :width 720 :height 720)
+      (save-plot p m-dir f))))
+
+
 
 (comment
   (use '[incanter core io stats charts datasets latex])
@@ -670,6 +787,9 @@
   (run-plots :plot-set :surface-energy)
 
   (set-machine-location! "../Reference-As-Supplied-100mg-3mm-50C-S1-SE-10ml" "SE-ref-100mg.csv")
+  (write-se-data-files @machine-file @machine-dir)
+  (run-plots :plot-set :surface-energy :legend true)
+
   ;(set-machine-location! "../
 
   (def p (bet-plot @machine-dir :amount-mmol))
@@ -696,15 +816,7 @@
   (view p)
   (save-plot p @machine-dir "Vol-com-vs-Actual-Surface-Coverage")
 
-  (def codes [:nano-1-750-sa-s1-20mg
-              :nano-1-750-sa-s2-20mg
-              :nano-1-1500-sa-s2-10mg
-              :nano-2-2000-sa-s1-12mg
-              :nano-2-2000-sa-s2-12mg
-              :nano-1-3000-sa-s1-8mg
-              :nano-2-4000-sa-s1-3mg]
-    )
-  (def p (injection-plots ".." codes :partial-pressure :amount-mmol-g-com "Amount (com) vs Partial Pressure"))
+  (def p (injection-plots ".." codes sa-labels :partial-pressure :amount-mmol-g-com "Amount (com) vs Partial Pressure"))
   (save-plot p "../igc" "Nanosheets-Amt-com-vs-Partial-Pressure.png")
   (view p)
   (def p (injection-plots ".." codes :partial-pressure :amount-mmol-g-max "Amount (max) vs Partial Pressure"))
@@ -714,17 +826,12 @@
   (view p)
   (save-plot p "../igc" "Nanosheets-Ret-Vol-com-vs-Coverage.png")
 
-    (def sa-codes [:nano-1-750-sa-s1-20mg
-              :nano-1-750-sa-s2-20mg
-              :nano-1-1500-sa-s2-10mg
-              :nano-2-2000-sa-s1-12mg
-              :nano-2-2000-sa-s2-12mg
-              :nano-1-3000-sa-s1-8mg
-              :nano-2-4000-sa-s1-3mg]
-    )
-  (def p (bet-plots ".." sa-codes :amount-mmol-g-com))
+
+  (def p (bet-plots ".." sa-codes sa-labels :amount-mmol-g-com))
   (view p)
   (save-plot p "../igc" "Nanosheets-BET-Amt-com.png")
+
+  ;
 
   ; Vapor pressure (P sat) by the Antoine Equation: ln P sat/kPa = A − B
 ;t/◦C+C

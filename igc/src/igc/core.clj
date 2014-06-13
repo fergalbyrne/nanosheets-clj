@@ -65,8 +65,8 @@
 
 (def root-dir (fs/file ".."))
 
-(def igc-runs (glob-pattern root-dir "Nanosheets*"))
 (def igc-runs (glob-pattern root-dir "Reference*"))
+(def igc-runs (glob-pattern root-dir "Nanosheets*"))
 
 (def igc-data (for [igc-run igc-runs
                     export (glob-pattern igc-run "export")
@@ -130,6 +130,7 @@
 ; nano (def use-data (nth (vec igc-data) 14))
 ; ref
 (def use-data (nth (vec igc-data) 0))
+(def use-data (nth (vec igc-data) 13))
 
 (def i1 (nth (:injections use-data) 4))
 (def inj1 (:injection-settings use-data))
@@ -187,7 +188,7 @@
     (let [plot (plot-solvent solvent)
           plot (set-plot-theme plot)
           run-dir (:run-dir use-data)]
-      (view plot)
+      (view plot :width 720 :height 720)
       (save plot (str run-dir "/FID-" solvent "--"
                       (fs/base-name run-dir) ".png")
             :width 720 :height 720))))
