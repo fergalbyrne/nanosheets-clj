@@ -99,10 +99,12 @@
   [data col grp-col]
   (col (first (:rows ($rollup :min col grp-col data)))))
 
+(def injection-cutoff (inc 1200))
+
 (defn table-map [files injections-csv sched-file]
 	(let [[injection-map solvent-map] (injection-config injections-csv sched-file)]
        (into {} (for [f files]
-  	   (let [data ($where {:ID {:$lt 1001}} (read-dataset f :header true))
+  	   (let [data ($where {:ID {:$lt injection-cutoff}} (read-dataset f :header true))
              fname (s/replace (fs/base-name f) #".csv$" "")
              gain (injection-map fname)
              solvent (solvent-map fname)
@@ -129,8 +131,9 @@
 
 ; nano (def use-data (nth (vec igc-data) 14))
 ; ref
-(def use-data (nth (vec igc-data) 0))
-(def use-data (nth (vec igc-data) 13))
+(def use-data (nth (vec igc-data) 1)) ; reference 100mg SE
+(def use-data (nth (vec igc-data) 0)) ; reference 100mg SA
+(def use-data (nth (vec igc-data) 13)) ; nanosheets 4k SA
 
 (def i1 (nth (:injections use-data) 4))
 (def inj1 (:injection-settings use-data))
@@ -173,7 +176,7 @@
              :group-by :injection :legend false
              :x-label "Injection Time (min)"
              :y-label "FID (µV)"
-             :title solvent)))
+             :title (str "FID (µV) Chromatogram: " solvent))))
 
 (defn plot-solvent-fid
   [solvent]
@@ -186,6 +189,7 @@
 (defn run-fid-plots []
   (for [solvent solvent-names]
     (let [plot (plot-solvent solvent)
+          plot (set-title plot "")
           plot (set-plot-theme plot)
           run-dir (:run-dir use-data)]
       (view plot :width 720 :height 720)

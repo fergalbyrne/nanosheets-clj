@@ -2,8 +2,10 @@
   (:use [incanter core io stats charts datasets latex])
   (:require [me.raynes.fs :as fs]
             [clojure.string :as s]
+            [clojure.set :as sets]
             [igc.util :refer :all])
   (:gen-class :main true))
+
 
 
 (def machine-file-list
@@ -59,10 +61,17 @@
    [:code :nano-2-2000-sa-s2-12mg
     :dir "Nanosheets-Prep-II-2000rpm-12mg-01-3mm-30C-S2-SA-10ml"
     :machine-file "SA-2k-12mg-S2.csv"]
+   [:code :nano-2-2000-se-s1-12mg
+    :dir "Nanosheets-Prep-II-2000rpm-12mg-01-3mm-50C-S1-SE-10ml"
+    :machine-file "SE-2krpm-12mg-S1.csv"]
    [:code :nano-2-4000-sa-s1-3mg
     :dir "Nanosheets-Prep-II-4000rpm-3mg-01-3mm-30C-S1-SA-10ml"
     :machine-file "SA-4k-3mg.csv"]
+   [:code :nano-2-4000-se-s1-3mg
+    :dir "Nanosheets-Prep-II-4000rpm-3mg-01-3mm-50C-S1-SE-10ml"
+    :machine-file "nanosheet-4k-2mm-SE-50C.csv"]
    ])
+
 
 (def machine-files (into {} (for [[_ code _ dir _ machine-file] machine-file-list]
                               {dir machine-file})))
@@ -119,6 +128,7 @@
 	(add-derived-column col [] #(str tag) data))
 
 (def igc-dir (fs/file "../01-Access-Files"))
+(def sem-dir (fs/file "../03-Processed-Files"))
 
 (defn glob-pattern [dir pattern]
   (fs/with-mutable-cwd (fs/chdir dir) (fs/glob pattern)))
@@ -216,6 +226,10 @@
                            8 :int-retention-vol-com
                            9 :col-temp})
 (def free-energy-titles {:n-nm "n/n_m"
+                        :en-stz-max "Free Energy Schultz [max] (mJ/m^2)"
+                        :en-stz-com "Free Energy Schultz [com] (mJ/m^2)"
+                        :en-pol-max "Pol Energy [max] (mJ/m^2)"
+                        :en-pol-com "Pol Energy [com] (mJ/m^2)"
                          :int-retention-vol-max "Interpolated Retention Volume (max)"
                          :int-retention-vol-com "Interpolated Retention Volume (com)"})
 
@@ -237,10 +251,41 @@
 
 (def dispersive-legend-titles {:n-nm "n/n_m"
                         :en-stz-max "Schultz [max]"
-                        :en-stz-com "Schultz [cpm]"
+                        :en-stz-com "Schultz [com]"
                         :en-dng-max "Dorris-Gray [max]"
                         :en-dng-com "Dorris-Gray [com]"
                         })
+; n/nm	?d	?s+	?s-	?ab	?t
+
+(def sem-cols {0 :n-nm
+               1 :gamma-d
+               2 :gamma-s-plus
+               3 :gamma-s-minus
+               4 :gamma-ab
+               5 :gamma-t})
+
+(def small-gamma "ɣ")
+(def capital-gamma "Ɣ")
+
+(def sem-titles {:n-nm "n/n_m"
+                 :gamma-d "ɣD (mJ/m^2)"
+                 :gamma-s-plus "ɣS+ (mJ/m^2)"
+                 :gamma-s-minus "ɣS- (mJ/m^2)"
+                 :gamma-ab "ɣAB (mJ/m^2)"
+                 :gamma-t "ɣt (mJ/m^2)"
+                 :total-gamma-plus "ɣD + ɣS+ (mJ/m^2)"
+                 :total-gamma-minus "ɣD + ɣS+ + ɣS- (mJ/m^2)"
+                 })
+
+(def sem-legend-titles {:n-nm "n/n_m"
+                 :gamma-d "ɣDispersive"
+                 :gamma-s-plus "ɣS+ (acid)"
+                 :gamma-s-minus "ɣS- (base)"
+                 :gamma-ab "ɣAB"
+                 :gamma-t "ɣtotal"
+                 :total-gamma-plus "ɣD + ɣS+ (mJ/m^2)"
+                 :total-gamma-minus "ɣD + ɣS+ + ɣS- (mJ/m^2)"
+                 })
 
 ;Injection Items
 ;ID	Injection Name	Solvent	Injection Time [ms]	Duration [min]
@@ -281,13 +326,14 @@
                            26 :amount-mmol-g-max
                            27 :amount-mmol-g-com})
 
+
 (def injection-items-titles {:id "ID"
                              :injection-name "Injection Name"
                              :solvent-name "Solvent"
                              :injection-time "Injection Time [ms]"
                              :duration "Duration [min]"
                              :target-surface-coverage "Target Fractional Surface Coverage"
-                             :actual-surface-coverage "Actual Fractional Surface Coverage"
+                             :actual-surface-coverage "Actual Coverage (n/nm)"
                              :col-temp "Column Temperature [Kelvin]"
                              :pressure-drop "Column Pressure Drop [Torr]"
                              :exit-flow-rate "Exit Flow Rate"
@@ -334,6 +380,19 @@
               :nano-2-4000-sa-s1-3mg "4Krpm 3mg (S1)"
        }
     )
+    (def se-codes [:ref-1-supplied-se-s1-100mg
+               :nano-1-3000-se-s1-8mg
+               :nano-1-1500-se-s1-10mg
+               :nano-1-750-se-s2-20mg
+               :nano-2-2000-se-s1-12mg
+               :nano-2-4000-se-s1-3mg])
+
+    (def se-labels {:ref-1-supplied-se-s1-100mg "Ref 100mg"
+               :nano-1-3000-se-s1-8mg "Nano I 3Krpm"
+               :nano-1-1500-se-s1-10mg "Nano I 1500rpm"
+               :nano-1-750-se-s2-20mg "Nano I 750rpm"
+                    :nano-2-2000-se-s1-12mg "Nano II 2Krpm"
+               :nano-2-4000-se-s1-3mg "Nano II 4Krpm"})
 
 (defn solvent-properties
   [data-dir key-col val-col]
@@ -382,8 +441,14 @@ rows
                      :header true :delim \tab)
        (rename-cols col-map)))
 
+(defn sem-loader
+  [fname col-map]
+  (->> (read-dataset fname :skip 10 :delim \tab)
+       (rename-cols col-map)))
+
 (defn plot-maker
-  [data title-map x-col y-col grp-col title & {:keys [legend series-label] :or {legend false series-label (title-map y-col)}}]
+  [data title-map x-col y-col grp-col title
+   & {:keys [legend series-label] :or {legend false series-label (title-map y-col)}}]
   (xy-plot x-col y-col :data data
              :group-by grp-col
            :legend legend
@@ -417,6 +482,7 @@ rows
 (defn solvents-plot
   [data-dir xcol ycol title & {:keys [legend] :or {legend false}}]
   (let [data (data-loader data-dir "injection-items" injection-items-cols)
+        data (transform-col data :solvent-name title-case)
         data ($where ($fn [injection-name](re-matches #"injection.*" injection-name))
                      data)
         data ($order :solvent-name :asc data)
@@ -426,12 +492,13 @@ rows
         solvent (first solvents)
         solvent-data (by-solvent solvent data)
         plot (plot-maker solvent-data injection-items-titles
-              xcol ycol :solvent-name title :legend legend)
+              xcol ycol :solvent-name title :legend legend
+                         :series-label (title-case solvent))
         ]
     (reduce (fn [p solvent]
                        (add-lines p xcol ycol
                                   :data (by-solvent solvent data)
-                                  :series-label solvent
+                                  :series-label (title-case solvent)
                                   :points true))
                      plot
                      (rest solvents))))
@@ -492,7 +559,195 @@ rows
                                   :points true
                                   :series-label (dispersive-legend-titles col)))
                      plot
-                     [:en-dng-max :en-stz-com :en-stz-max])]
+                     [:en-dng-max :en-stz-com :en-stz-max])
+        plot (set-plot-theme plot :set-min 35.0)]
+  plot))
+
+(defn free-energy-plots [data-dir]
+  (let [data (data-loader data-dir "free-energy" free-energy-cols)
+        data ($where ($fn [solvent-name] (or (= solvent-name "DICHLOROMETHANE")
+                                             (= solvent-name "ETHYL ACETATE")))
+                     data)
+        ;_ (view data)
+        plot (xy-plot :n-nm :en-stz-com :data data
+             :legend true
+             :x-label (free-energy-titles :n-nm)
+                      :group-by :solvent-name
+             :y-label "Surface Energy dG (kJ/Mol)"
+                      :series-label (free-energy-titles :en-stz-com)
+             :title "Surface Energy"
+           :points true)
+        plot (set-plot-theme plot :set-min false)]
+  plot))
+
+(def avogadro 6.0221413e+23)
+(defn RTlnV
+  [tK V]
+  (let [gas-constant 8.3145]
+    (* gas-constant
+       tK
+       (Math/log V))))
+
+(defn ap-sqrt-gamma
+  [ap gamma]
+  (* 2.0 ap avogadro (Math/sqrt gamma)))
+
+(defn make-linear-model
+  [lm-data xcol ycol]
+  (let [lm-x (to-matrix (sel lm-data :cols [xcol]))
+        lm-y (to-matrix (sel lm-data :cols [ycol]))
+        lm (linear-model lm-y lm-x)]
+    [lm-x lm]))
+
+(defn schultz-plots [data-dir & {:keys [method] :or {method :int-retention-vol-com}}]
+  (let [cs-data (solvent-properties data-dir :solvent_name :cross_sectional_area)
+        surface-tension-data (solvent-properties
+                              data-dir :solvent_name :dispersive_surface_tension)
+        donor-data (solvent-properties data-dir :solvent_name :vOCGelectronDonorParameter)
+        acceptor-data (solvent-properties data-dir :solvent_name :vOCGelectronAcceptorParameter)
+        data (data-loader data-dir "free-energy" free-energy-cols)
+        coverages (vec (into (sorted-set) (sel data :cols :n-nm)))
+        solvents (into (sorted-set) (sel data :cols :solvent-name))
+        non-polars (vec (sets/difference solvents #{"DICHLOROMETHANE" "ETHYL ACETATE"}))
+        ;_ (println coverages)
+        ap-sqrts (into {} (map (fn [solvent] (let [ap (cs-data solvent)
+                                         gamma (surface-tension-data solvent)]
+                                      {solvent (ap-sqrt-gamma ap gamma)}))
+                      solvents))
+        ;_ (println ap-sqrts)
+        data (add-derived-column :RTlnV
+                                 [:col-temp method]
+                                 RTlnV
+                                 data)
+        data (add-derived-column :ap-sqrt-gamma
+                                 [:solvent-name]
+                                 (fn [solvent]
+                                   (ap-sqrts solvent))
+                                 data)
+        non-polar-data ($where ($fn [solvent-name]
+                                    (and (not= solvent-name "DICHLOROMETHANE")
+                                         (not= solvent-name "ETHYL ACETATE")))
+                               data)
+        ;non-polar-data data ; use to show polar values
+        polar-data ($where ($fn [solvent-name]
+                                    (or (= solvent-name "DICHLOROMETHANE")
+                                         (= solvent-name "ETHYL ACETATE")))
+                               data)
+        ;_ (view data)
+        slope-data (for [coverage coverages]
+                 (let [cov-data ($where ($fn [n-nm] (= n-nm coverage)) non-polar-data)
+                       [lm-x lm] (make-linear-model cov-data :ap-sqrt-gamma :RTlnV)
+                       [a b] (:coefs lm)
+                       r-squared (:r-square lm)
+                       _ (println coverage r-squared)]
+                   [coverage a b (* 1000.0 b b) r-squared])) ; slope is sqrt gamma (in mJ/m2, so *1000)
+        slopes (map #(nth % 3) slope-data)
+        r-squares (map #(nth % 4) slope-data)
+
+
+        gamma-plus (acceptor-data "DICHLOROMETHANE")
+        ap-sqrt-gamma-DCM (ap-sqrt-gamma gamma-plus (cs-data "DICHLOROMETHANE"))
+        gamma-minus (donor-data "ETHYL ACETATE")
+        ap-sqrt-gamma-EA (ap-sqrt-gamma gamma-minus (cs-data "ETHYL ACETATE"))
+
+        _ (println "+" gamma-plus "-" gamma-minus)
+        _ (println "ap-sqrt-gamma-DCM" ap-sqrt-gamma-DCM "ap-sqrt-gamma-EA" ap-sqrt-gamma-EA)
+
+        specific-estimates (for [i (range (count coverages))]
+                             (let [;_ (println "estimate" i)
+                                   [coverage a b slope] (nth slope-data i)
+                                   cov-data ($where ($fn [n-nm] (= n-nm coverage)) polar-data)
+                                   ;_ (view cov-data)
+                                   specific-data (add-derived-column
+                                                  :specific-y
+                                                  [:ap-sqrt-gamma :RTlnV]
+                                                  (fn [x y]
+                                                    (- y (+ a (* b x))))
+                                                  cov-data)
+                                   ;_ (view specific-data)
+                                   data-map (into {} ($map (fn [solvent x y] {solvent [x y]})
+                                                           [:solvent-name :ap-sqrt-gamma :specific-y]
+                                                           specific-data))
+                                   [xDCM yDCM] (data-map "DICHLOROMETHANE")
+                                   [xEA yEA] (data-map "ETHYL ACETATE")
+                                   polar-minus (* avogadro (/ yDCM ap-sqrt-gamma-DCM))
+                                   polar-minus-sqr (* 1000.0 polar-minus polar-minus)
+                                   polar-plus (* avogadro (/ yEA ap-sqrt-gamma-EA))
+                                   polar-plus-sqr (* 1000.0 polar-plus polar-plus)
+                                   ;_ (println "y+" yEA "y-" yDCM)
+                                   ;_ (println "pol+" polar-plus "pol-" polar-minus)
+                                   ;_ (println "gamma+" polar-plus-sqr "gamma-" polar-minus-sqr)
+
+                                   ;_ (println data-map)
+                                   ;slope (/ (- y1 y0) (- x1 x0))
+                                   ;_ (println coverage slope)
+                                   ;[lm-x lm] (make-linear-model specific-data :ap-sqrt-gamma :specific-y)
+                                   ;[a b] (:coefs lm)
+                                   ]
+                               ;(println coverage a b)
+                               [coverage [polar-minus polar-plus] [polar-minus-sqr polar-plus-sqr] [xDCM yDCM] [xEA yEA]]))
+
+
+        _ (count specific-estimates)
+        cov0 (first coverages)
+        cov0-data ($where ($fn [n-nm] (= n-nm cov0)) non-polar-data)
+
+        plot (xy-plot :ap-sqrt-gamma :RTlnV :data cov0-data
+             :legend true
+             :x-label "2 * Na * ap * sqrt(gamma)"
+             :group-by :n-nm
+             :y-label "RTlnV"
+             :series-label :n-nm
+           :points true)
+
+        lm-plot (xy-plot coverages slopes
+             :x-label "Coverage (n/nm)"
+             :y-label "Dispersive Surface Energy (mJ/m^2)"
+           :points true)
+
+        r-sq-plot (xy-plot coverages r-squares
+             :x-label "Coverage (n/nm)"
+             :y-label "Coefficient of Determination R^2"
+           :points true)
+        r-sq-plot (set-plot-theme r-sq-plot :set-min 0.99 :set-max 1.0)
+
+        _ (save-plot r-sq-plot data-dir (str "Dispersive-R-Squared-" (name method)))
+        _ (view r-sq-plot :width 720 :height 720)
+
+        show-specific? false
+        lm-plot (if show-specific?
+                  (add-lines lm-plot coverages (map second specific-estimates)
+                           :series-label "Specific Surface Energy"
+                           :points true)
+                  lm-plot)
+        ;lm-plot (set-plot-theme lm-plot)
+        lm-plot (set-plot-theme lm-plot :set-min 35.0 :set-max 75.0)
+        _ (save-plot lm-plot data-dir (str "Dispersive-Calculated-" (name method)))
+        _ (view lm-plot :width 720 :height 720)
+
+        polar-pluss (map #(nth (nth % 1) 1) specific-estimates)
+        polar-minuss (map #(nth (nth % 1) 0) specific-estimates)
+
+        polar-plot (xy-plot coverages polar-pluss
+             :x-label "Coverage (n/nm)"
+             :y-label "Polar Surface Energy (mJ/m^2)"
+             :series-label "pol+"
+                            :legend true
+           :points true)
+        polar-plot (add-lines polar-plot coverages polar-minuss
+                           :series-label "pol-"
+                           :points true)
+        _ (save-plot polar-plot data-dir "Polar-Calculated")
+        ;_ (view polar-plot :width 720 :height 720)
+        plot (reduce
+              (fn [p coverage]
+                (let [cov-data ($where ($fn [n-nm] (= n-nm coverage)) non-polar-data)]
+                  (add-lines p :ap-sqrt-gamma :RTlnV :data cov-data
+                         :series-label coverage
+                         :points true)))
+            plot
+            (take-nth 2 (drop 2 coverages)))
+        plot (set-plot-theme plot)]
   plot))
 
 (defn bet-data [data-dir amt-col]
@@ -551,7 +806,7 @@ rows
         lm (linear-model lm-y lm-x)
         [a b] (:coefs lm)
         _ (println "Adding Linear Model..")
-        plot (add-lines plot lm-x (:fitted lm) :series-label "Linear Model")
+        plot (add-lines plot lm-x (:fitted lm) :series-label "Linear Model" :points true)
         monolayer-capacity (/ 1.0 (+ a b))
         bet-constant (+ 1.0 (/ b a))
         cross-section (get solvent-data solvent)
@@ -617,7 +872,7 @@ rows
     plot))
 
 (defn bet-plots
-  [root codes labels ycol & {:keys [solvent] :or {solvent "OCTANE"}}]
+  [root codes labels ycol & {:keys [solvent hide-titles] :or {solvent "OCTANE" hide-titles true}}]
   (let [dirs (map :dir (vals (select-keys machine-data codes)))
         ;_ (println dirs)
         first-dir (:dir ((first codes) machine-data))
@@ -638,6 +893,7 @@ rows
                          :bet-ordinate :bet-value :dir
                          (str "BET: " (injection-items-titles ycol))
                          :legend true :series-label (labels (first codes)))
+        plot (if hide-titles (set-title plot "") plot)
         ;_ (view plot)
         ]
     (reduce (fn [p [data code]]
@@ -648,6 +904,74 @@ rows
             plot
             (map vector (rest data-sets) (rest codes)))))
 
+(defn dispersive-plots [data-dir]
+  (let [data (data-loader data-dir "dispersive-surface-energy" dispersive-cols)
+        ;_ (view data)
+        plot (xy-plot :n-nm :en-stz-com :data data
+             :legend true
+             :x-label (dispersive-titles :n-nm)
+             :y-label "Dispersive Surface Energy (mJ/m^2)"
+                      :series-label (dispersive-legend-titles :en-stz-com)
+             :title "Dispersive Surface Energy"
+           :points true)
+        plot (reduce (fn [p col]
+                       (add-lines p :n-nm col
+                                  :data data
+                                  :points true
+                                  :series-label (dispersive-legend-titles col)))
+                     plot
+                     [:en-stz-max :en-dng-com :en-dng-max])
+        plot (set-plot-theme plot :set-min 35.0)]
+  plot))
+
+(defn dse-plots
+  [root codes labels & {:keys [ycol hide-titles] :or {ycol :en-dng-com hide-titles true}}]
+  (let [dirs (map :dir (vals (select-keys machine-data codes)))
+        ;_ (println dirs)
+        first-dir (:dir ((first codes) machine-data))
+        _ (set-machine-location! (str root "/" first-dir) (machine-files first-dir))
+        data-sets (into {} (for [code codes]
+                    (let [dir (:dir (code machine-data))
+                          data-dir (str root "/" dir)
+                          fname (fs/base-name data-dir)
+                          _ (println "loading " fname)
+                          data (data-loader data-dir "dispersive-surface-energy" dispersive-cols)
+                          ;_ (view data)
+                          data (add-derived-column :dir [] (fn [] (labels code)) data)]
+                      {code data})))
+        #_#_per-coverage (into {}
+                           (for
+                             [coverage coverages]
+                             (let
+                               [dse (into
+                                     []
+                                     (for
+                                       [code codes]
+                                       (let [data (data-sets code)
+                                             row ($where ($fn [n-nm] (= coverage n-nm)) data)
+                                             yval ($ ycol row)]
+                                         yval)))]
+                               {coverage dse})))
+
+        plot (xy-plot
+              :n-nm ycol :data (data-sets (first codes))
+             :legend true
+             :x-label (dispersive-titles :n-nm)
+             :y-label (dispersive-titles ycol)
+                      :series-label (labels (first codes))
+             :title ""
+           :points true)
+        plot (if hide-titles (set-title plot "") plot)
+        plot (set-plot-theme plot)
+        ;_ (view plot :width 720 :height 720)
+        ]
+    (reduce (fn [p code]
+              (add-lines p :n-nm ycol :data (data-sets code)
+                         :series-label (labels code)
+                         :points true))
+            plot
+            (rest codes))))
+
 
 (comment
   (def d (bet-data @machine-dir :amount-mmol-g-com))
@@ -656,7 +980,8 @@ rows
   (def lm (linear-model lm-y lm-x))
   )
 
-(defn run-plots [& {:keys [plot-set legend] :or {plot-set :surface-area legend false}}]
+(defn run-plots [& {:keys [plot-set legend hide-titles] :or
+                    {plot-set :surface-area legend false hide-titles true}}]
   (let [m-dir @machine-dir
         m-name (fs/base-name m-dir)
         plot-seq [
@@ -691,6 +1016,12 @@ rows
                         "DSE-Schultz-max"]
                        [(dispersive-plots m-dir)
                         "Dispersive-Surface-Energy"]
+                       [(free-energy-plots m-dir)
+                        "Free-Energy"]
+                       [(schultz-plots m-dir :method :int-retention-vol-com)
+                        "Schultz-Plots-com"]
+                       [(schultz-plots m-dir :method :int-retention-vol-max)
+                        "Schultz-Plots-max"]
                        [(solvents-plot m-dir :partial-pressure :net-ret-vol-com
                                        "Volume [com] v Partial Pressure" :legend legend)
                         "Vol-com-v-Partial-Pressure"]
@@ -715,13 +1046,78 @@ rows
         plot-seq (reduce conj plot-seq extra-plots)]
     (doseq [[p f] plot-seq]
       (view p :width 720 :height 720)
+      (if hide-titles (set-title p ""))
       (save-plot p m-dir f))))
 
+(defn sem-preps
+  [root]
+  (glob-pattern root "*"))
+
+(defn sem-plot
+  [data f]
+  (let [ycol :gamma-d
+        data (->> data
+                  (add-derived-column :total-gamma-plus [:gamma-d :gamma-s-plus] +)
+                  (add-derived-column :total-gamma-minus [:total-gamma-plus :gamma-s-minus] +)
+                  )
+        plot (xy-plot
+              :n-nm ycol :data data
+              :legend true
+              :x-label (sem-titles :n-nm)
+              :y-label (sem-titles ycol)
+              :series-label (sem-legend-titles ycol)
+              :title ""
+              :points true)
+        hide-titles true
+        plot (if hide-titles (set-title plot "") plot)
+        plot (set-plot-theme plot)
+        ;_ (view plot :width 720 :height 720)
+        codes [:gamma-d :gamma-s-plus :gamma-s-minus :gamma-ab :gamma-t]
+        ]
+    (set-plot-theme (reduce (fn [p code]
+              (add-lines p :n-nm code :data data
+                         :series-label (sem-legend-titles code)
+                         :points true))
+            plot
+            (rest codes)))))
+
+; (clojure.java.io/reader f :encoding "UTF-16")
+
+(defn load-sem-file
+  [f root]
+  (let [data (read-dataset f :skip 10 :delim \tab)
+        data (rename-cols sem-cols data)
+        ;_ (view data)
+        plot (sem-plot data f)
+        fname (s/replace (fs/base-name f) #".txt" "")
+        dir (s/replace (fs/parent f) root "../sem-plots")
+        ;_ (view plot :width 720 :height 720)
+        save-name (str dir "/" fname ".png")
+        _ (println "saving to" save-name)]
+    (save plot save-name :width 720 :height 720)))
+; n/nm	?d	?s+	?s-	?ab	?t
+(defn sem-crawler
+  [root & {:keys [prep-pattern sets-pattern file-pattern] :or
+                    {prep-pattern "*" sets-pattern "*" file-pattern "*.txt"}}]
+  (doall (for [preps (glob-pattern root prep-pattern)
+               sets (glob-pattern preps sets-pattern)
+               ;data-file (glob-pattern sets "*.txt")
+               data-file (glob-pattern sets file-pattern)
+               :when (re-matches #".*-p?(com|max).*" (fs/base-name data-file))
+               ]
+           (load-sem-file data-file root))))
 
 
 (comment
   (use '[incanter core io stats charts datasets latex])
   (use '[igc surface-energy util] :reload)
+
+  (sem-crawler "../03-Processed-Files" :prep-pattern "Prep-I" :file-pattern "1500*.txt")
+  (sem-crawler "../03-Processed-Files" :prep-pattern "Prep-I" :file-pattern "3000*.txt")
+  (sem-crawler "../03-Processed-Files" :prep-pattern "Prep-I" :file-pattern "as-received*.txt")
+
+  (sem-crawler "../03-Processed-Files" :prep-pattern "Prep-II" :file-pattern "1500*.txt")
+
   (set-machine-location! "../Nanosheets-Prep-II-2000rpm-12mg-01-3mm-30C-S1-SA-10ml" "SA-2k-12mg-S1.csv")
   (write-se-data-files @machine-file @machine-dir)
   (run-plots)
@@ -789,6 +1185,10 @@ rows
   (set-machine-location! "../Reference-As-Supplied-100mg-3mm-50C-S1-SE-10ml" "SE-ref-100mg.csv")
   (write-se-data-files @machine-file @machine-dir)
   (run-plots :plot-set :surface-energy :legend true)
+
+  (set-machine-location! "../Nanosheets-Prep-II-2000rpm-12mg-01-3mm-50C-S1-SE-10ml" "SE-2krpm-12mg-S1.csv")
+  (write-se-data-files @machine-file @machine-dir)
+  ; :nano-2-2000-se-s1-12mg:nano-2-2000-se-s1-12mg
 
   ;(set-machine-location! "../
 
